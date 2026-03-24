@@ -1,4 +1,7 @@
-CLOUDFLARE_API_TOKEN="cfut_q9zutlRIEeWg0uZmZhcqBh9GMGJZxnnAqOZrnyWH0e11b5dc"
+curl -X GET "https://api.cloudflare.com" \
+     -H "Authorization: Bearer <cfut_q9zutlRIEeWg0uZmZhcqBh9GMGJZxnnAqOZrnyWH0e11b5dc>" \
+     -H "Content-Type:application/json"
+
 name                  = "watauga-outage-network"
 pages_build_output_dir = "public"
 
