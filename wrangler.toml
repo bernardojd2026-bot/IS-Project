@@ -1,6 +1,4 @@
-export CLOUDFLARE_API_TOKEN="cfut_q9zutlRIEeWg0uZmZhcqBh9GMGJZxnnAqOZrnyWH0e11b5dc"
-export CLOUDFLARE_ACCOUNT_ID="116f5626a7c82325e3fac3dec22e3ab9"
-
+CLOUDFLARE_API_TOKEN="cfut_q9zutlRIEeWg0uZmZhcqBh9GMGJZxnnAqOZrnyWH0e11b5dc"
 name                  = "watauga-outage-network"
 pages_build_output_dir = "public"
 
