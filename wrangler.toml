@@ -1,0 +1,20 @@
+name                  = "watauga-outage-network"
+pages_build_output_dir = "public"
+
+# ── Deploy commands ─────────────────────────────────────────
+#
+#   First-time setup:
+#     npx wrangler pages project create watauga-outage-network
+#
+#   Deploy:
+#     npx wrangler pages deploy public
+#
+#   Or connect your GitHub repo in the Cloudflare Dashboard:
+#     https://dash.cloudflare.com → Pages → Create a project
+#     Build command:    (leave blank — static site)
+#     Build output dir: public
+#
+# ── Environment variables ───────────────────────────────────
+# No server-side secrets needed — Supabase anon key is safe
+# to expose on the client when Row Level Security is enabled.
+# See: https://supabase.com/docs/guides/auth/row-level-security
