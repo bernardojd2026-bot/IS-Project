@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WON — ISP Details</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .details-wrap { max-width: 1020px; margin: 0 auto; padding: 36px 24px 60px; }
+
+    .selector-row {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .selector-row > div { flex: 1; min-width: 180px; }
+
+    .issue-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 70px 24px;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 40px;
+      margin-bottom: 14px;
+      opacity: .5;
+    }
+
+    .empty-text { font-size: 13px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-brand">
+    <div class="nav-dot"></div>
+    <span>WON</span>
+    <span class="tagline" style="color:var(--text-muted);font-weight:300;letter-spacing:0.04em">Watauga Outage Network</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html"       class="nav-link">Heatmap</a>
+    <a href="report.html"      class="nav-link">Report</a>
+    <a href="isps.html"        class="nav-link">ISP Rankings</a>
+    <a href="isp-details.html" class="nav-link active">ISP Details</a>
+  </div>
+</nav>
+
+<div class="page details-wrap">
+
+  <!-- Page header -->
+  <div style="margin-bottom:24px">
+    <h1 style="font-size:18px;font-weight:600;color:var(--text-bright);margin-bottom:6px;letter-spacing:-0.01em">ISP Detail View</h1>
+    <p style="color:var(--text-muted);font-size:13px">Drill into outage patterns for a specific internet service provider.</p>
+  </div>
+
+  <!-- Selector row -->
+  <div class="selector-row">
+    <div>
+      <label for="isp-select">Select ISP</label>
+      <select id="isp-select">
+        <option value="">— Choose an ISP —</option>
+      </select>
+    </div>
+    <div style="max-width:200px">
+      <label for="time-filter">Time Range</label>
+      <select id="time-filter">
+        <option value="24">Last 24 Hours</option>
+        <option value="168">Last 7 Days</option>
+        <option value="720" selected>Last 30 Days</option>
+        <option value="0">All Time</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Dynamic content area -->
+  <div id="content">
+    <!-- Initial empty state -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">📡</div>
+      <div class="empty-text">Select an ISP above to view detailed outage data.</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+  const db = getSupabaseClient();
+
+  // ── Populate ISP select ───────────────────────────────────
+  const ispSel = document.getElementById('isp-select');
+  ISPS.forEach(isp => {
+    const o = document.createElement('option');
+    o.value = o.textContent = isp;
+    ispSel.appendChild(o);
+  });
+
+  // Pre-select from URL param
+  const urlParam = new URLSearchParams(window.location.search).get('isp');
+  if (urlParam) { ispSel.value = urlParam; }
+
+  // ── Issue colors ──────────────────────────────────────────
+  const ISSUE_COLORS = {
+    complete_outage: '#ef4444',
+    slow_speeds:     '#f97316',
+    intermittent:    '#eab308',
+    no_wifi:         '#3b82f6',
+    dns_issues:      '#8b5cf6',
+    high_latency:    '#ec4899',
+  };
+
+  const DEFAULT_COLOR = '#64748b';
+
+  // ── Chart instances ───────────────────────────────────────
+  let donutChart    = null;
+  let timelineChart = null;
+
+  // ── Main load function ────────────────────────────────────
+  async function load() {
+    const isp = ispSel.value;
+    if (!isp) return;
+
+    const hours = parseInt(document.getElementById('time-filter').value);
+
+    // Show loading
+    document.getElementById('content').innerHTML =
+      '<div class="loading" style="padding:40px 0;justify-content:center"><div class="spinner"></div> Loading data for ' + isp + '…</div>';
+
+    let q = db.from('outage_reports')
+              .select('issue_type,created_at')
+              .eq('isp', isp);
+    if (hours > 0) q = q.gte('created_at', sinceISO(hours));
+    q = q.order('created_at', { ascending: true });
+
+    const { data, error } = await q;
+
+    if (error) {
+      document.getElementById('content').innerHTML =
+        '<div style="color:var(--red);padding:24px;font-size:13px">Error loading data. Please try again.</div>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      document.getElementById('content').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">✓</div>
+          <div class="empty-text">
+            No outage reports found for <strong style="color:var(--text)">${isp}</strong>
+            in the selected time range.
+          </div>
+        </div>`;
+      return;
+    }
+
+    // ── Compute stats ─────────────────────────────────────
+    const total = data.length;
+
+    const issueCounts = {};
+    data.forEach(r => { issueCounts[r.issue_type] = (issueCounts[r.issue_type] || 0) + 1; });
+    const sortedIssues = Object.entries(issueCounts).sort((a,b) => b[1]-a[1]);
+    const topIssue     = sortedIssues[0];
+
+    const lastReport = data[data.length - 1];
+    const firstReport= data[0];
+
+    // ── Build UI ──────────────────────────────────────────
+    document.getElementById('content').innerHTML = `
+      <!-- Stats row -->
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="card">
+          <div class="stat-value" id="stat-total">${total}</div>
+          <div class="stat-label">Total Reports</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="stat-top-issue" style="font-size:14px;line-height:1.3">
+            ${ISSUE_LABELS[topIssue[0]] || topIssue[0]}
+          </div>
+          <div class="stat-label">Most Common Issue</div>
+        </div>
+        <div class="card">
+          <div class="stat-value" id="stat-last" style="font-size:16px">${timeAgo(lastReport.created_at)}</div>
+          <div class="stat-label">Latest Report</div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="grid-2" style="align-items:start;margin-bottom:20px">
+
+        <!-- Donut -->
+        <div class="card">
+          <div class="card-header">Issue Type Breakdown</div>
+          <div class="chart-wrap" style="height:280px;display:flex;align-items:center;justify-content:center">
+            <canvas id="donut-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Issue breakdown table -->
+        <div class="card">
+          <div class="card-header">Issue Breakdown</div>
+          <div id="issue-table-wrap"></div>
+        </div>
+
+      </div>
+
+      <!-- Timeline chart -->
+      <div class="card">
+        <div class="card-header">
+          Reports Over Time
+          <span style="font-weight:400;margin-left:8px;color:var(--text-muted);font-size:10px">
+            — grouped by day
+          </span>
+        </div>
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="timeline-chart"></canvas>
+        </div>
+      </div>
+    `;
+
+    // ── Donut chart ───────────────────────────────────────
+    const dLabels = sortedIssues.map(([k]) => ISSUE_LABELS[k] || k);
+    const dValues = sortedIssues.map(([,v]) => v);
+    const dColors = sortedIssues.map(([k]) => ISSUE_COLORS[k] || DEFAULT_COLOR);
+
+    if (donutChart) donutChart.destroy();
+    donutChart = new Chart(document.getElementById('donut-chart'), {
+      type: 'doughnut',
+      data: {
+        labels: dLabels,
+        datasets: [{
+          data: dValues,
+          backgroundColor: dColors.map(c => c + 'cc'),
+          borderColor: dColors,
+          borderWidth: 1.5,
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '68%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: '#c8d6e8',
+              font: { family: 'IBM Plex Mono', size: 11 },
+              padding: 12,
+              boxWidth: 10,
+              boxHeight: 10,
+            },
+          },
+          tooltip: {
+            backgroundColor: '#0c1420',
+            borderColor: '#1c2d45',
+            borderWidth: 1,
+            titleColor: '#e8f2ff',
+            bodyColor: '#4a6080',
+            callbacks: {
+              label: ctx => `  ${ctx.parsed} reports (${((ctx.parsed/total)*100).toFixed(0)}%)`,
+            },
+          },
+        },
+      },
+    });
+
+    // ── Issue table ───────────────────────────────────────
+    document.getElementById('issue-table-wrap').innerHTML = `
+      <table class="data-table">
+        <thead><tr>
+          <th>Issue Type</th>
+          <th style="text-align:right">Count</th>
+          <th style="text-align:right">Share</th>
+        </tr></thead>
+        <tbody>
+          ${sortedIssues.map(([key, cnt]) => `
+            <tr>
+              <td>
+                <span class="issue-dot" style="background:${ISSUE_COLORS[key]||DEFAULT_COLOR}"></span>
+                ${ISSUE_LABELS[key] || key}
+              </td>
+              <td style="text-align:right;font-weight:600;color:var(--text-bright)">${cnt}</td>
+              <td style="text-align:right;color:var(--text-muted)">
+                ${((cnt/total)*100).toFixed(0)}%
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+
+    // ── Timeline: group by day ────────────────────────────
+    const dayMap = {};
+    data.forEach(r => {
+      const day = r.created_at.slice(0, 10);
+      dayMap[day] = (dayMap[day] || 0) + 1;
+    });
+
+    const days   = Object.keys(dayMap).sort();
+    const tLabels= days.map(d => {
+      const dt = new Date(d + 'T12:00:00');
+      return dt.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    });
+    const tValues = days.map(d => dayMap[d]);
+
+    if (timelineChart) timelineChart.destroy();
+    timelineChart = new Chart(document.getElementById('timeline-chart'), {
+      type: 'line',
+      data: {
+        labels: tLabels,
+        datasets: [{
+          label: 'Reports',
+          data: tValues,
+          borderColor: '#00cc7a',
+          backgroundColor: 'rgba(0,204,122,0.07)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: tValues.length > 30 ? 2 : 4,
+          pointBackgroundColor: '#00cc7a',
+          pointBorderColor: '#070c14',
+          pointBorderWidth: 2,
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0c1420',
+            borderColor: '#1c2d45',
+            borderWidth: 1,
+            titleColor: '#e8f2ff',
+            bodyColor: '#4a6080',
+          },
+        },
+        scales: {
+          x: {
+            grid:  { color: 'rgba(28,45,69,.4)' },
+            ticks: {
+              color: '#4a6080',
+              font: { family: 'IBM Plex Mono', size: 10 },
+              maxRotation: 45,
+              maxTicksLimit: 14,
+            },
+            border: { color: 'transparent' },
+          },
+          y: {
+            grid:  { color: 'rgba(28,45,69,.4)' },
+            ticks: {
+              color: '#4a6080',
+              font: { family: 'IBM Plex Mono', size: 11 },
+              stepSize: 1,
+            },
+            border: { color: 'transparent' },
+            beginAtZero: true,
+          },
+        },
+      },
+    });
+  }
+
+  ispSel.addEventListener('change', load);
+  document.getElementById('time-filter').addEventListener('change', load);
+
+  // Auto-load if pre-selected from URL
+  if (urlParam) load();
+</script>
+</body>
+</html>
