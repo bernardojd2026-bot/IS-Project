@@ -245,7 +245,9 @@
     maxZoom: 17,
     maxBounds: boundsLL.pad(0.05),
     maxBoundsViscosity: 0.9,
+    zoomControl: false,
   });
+  L.control.zoom({ position: 'topright' }).addTo(map);
 
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap contributors &copy; CARTO',

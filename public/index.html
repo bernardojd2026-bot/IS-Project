@@ -203,8 +203,9 @@
     minZoom: 9,
     maxZoom: 16,
     maxBounds: boundsLL.pad(0.3),
-    zoomControl: true,
+    zoomControl: false,
   });
+  L.control.zoom({ position: 'topright' }).addTo(map);
 
   // Dark tile layer (CartoDB Dark Matter)
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
