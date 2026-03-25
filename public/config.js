@@ -8,16 +8,16 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // ── ISPs served in Watauga County ───────────────────────────
 const ISPS = [
-  'Spectrum (Charter)',
-  'Skyline Telephone',
-  'AT&T',
-  'T-Mobile Home Internet',
-  'Starlink',
-  'HughesNet',
-  'Windstream',
+  'Provider A',
+  'Provider B',
+  'Provider C',
+  'Provider D',
+  'Provider E',
+  'Provider F',
+  'Provider G',
   'Other'
 ];
-
+ 
 // ── Issue type definitions ───────────────────────────────────
 const ISSUE_TYPES = [
   { value: 'complete_outage', label: 'Complete Outage'          },
@@ -27,9 +27,9 @@ const ISSUE_TYPES = [
   { value: 'dns_issues',      label: 'DNS Issues'               },
   { value: 'high_latency',    label: 'High Latency / Packet Loss'},
 ];
-
+ 
 const ISSUE_LABELS = Object.fromEntries(ISSUE_TYPES.map(t => [t.value, t.label]));
-
+ 
 // ── Watauga County, NC geographic bounds ────────────────────
 const WATAUGA_BOUNDS = {
   south: 36.077,
@@ -37,10 +37,10 @@ const WATAUGA_BOUNDS = {
   west:  -81.951,
   east:  -81.517,
 };
-
+ 
 const WATAUGA_CENTER = [36.213, -81.701];
 const WATAUGA_ZOOM   = 11;
-
+ 
 // ── Heatmap gradient: green → dark-red ──────────────────────
 const HEAT_GRADIENT = {
   0.00: '#22c55e',
@@ -50,12 +50,12 @@ const HEAT_GRADIENT = {
   0.84: '#dc2626',
   1.00: '#7f1d1d',
 };
-
+ 
 // ── Helpers ─────────────────────────────────────────────────
 function getSupabaseClient() {
   return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
-
+ 
 function showToast(message, type = 'success') {
   let toast = document.getElementById('toast');
   if (!toast) {
@@ -68,7 +68,7 @@ function showToast(message, type = 'success') {
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => toast.classList.remove('show'), 3800);
 }
-
+ 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const m = Math.floor(diff / 60000);
@@ -78,7 +78,7 @@ function timeAgo(dateStr) {
   if (h < 24)  return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
-
+ 
 function sinceISO(hours) {
   return new Date(Date.now() - hours * 3_600_000).toISOString();
 }
