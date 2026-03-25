@@ -255,8 +255,7 @@ select option { background: var(--surface2); color: var(--text-bright); }
 
 /* ── MAP ────────────────────────────────────────────────────── */
 .map-wrap { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.leaflet-container { background: #0c1a2e !important; }
-.leaflet-tile-pane { filter: brightness(0.85) saturate(0.7); }
+.leaflet-container { background: #e8e0d8 !important; }
 
 /* ── LOADING ────────────────────────────────────────────────── */
 .loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; padding: 20px 0; }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WON — Report an Outage</title>
+  <title>NetVantage Outage Network — Report an Outage</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
@@ -78,24 +78,24 @@
     .required-star { color: var(--red); margin-left: 2px; }
 
     .leaflet-control-attribution {
-      background: rgba(7,12,20,0.8) !important;
-      color: #4a6080 !important;
+      background: rgba(255,255,255,0.85) !important;
+      color: #666 !important;
       font-size: 10px !important;
     }
     .leaflet-control-zoom a {
-      background: var(--surface) !important;
-      color: var(--text) !important;
-      border-color: var(--border) !important;
+      background: white !important;
+      color: #333 !important;
+      border-color: #ccc !important;
     }
-    .leaflet-control-zoom a:hover { background: var(--surface2) !important; color: var(--accent) !important; }
+    .leaflet-control-zoom a:hover { background: #f0f0f0 !important; color: #00814d !important; }
   </style>
 </head>
 <body>
 <nav>
   <a href="index.html" class="nav-brand">
     <div class="nav-dot"></div>
-    <span>WON</span>
-    <span class="tagline" style="color:var(--text-muted);font-weight:300;letter-spacing:0.04em">Watauga Outage Network</span>
+    <span>NON</span>
+    <span class="tagline" style="color:var(--text-muted);font-weight:300;letter-spacing:0.04em">NetVantage Outage Network</span>
   </a>
   <div class="nav-links">
     <a href="index.html"       class="nav-link">Heatmap</a>
@@ -247,17 +247,17 @@
     maxBoundsViscosity: 0.9,
   });
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
     subdomains: 'abcd',
   }).addTo(map);
 
   // County boundary
   L.rectangle(boundsLL, {
-    color: 'rgba(0,204,122,0.35)',
-    weight: 1.5,
+    color: 'rgba(0,120,60,0.6)',
+    weight: 2,
     fill: false,
-    dashArray: '5 5',
+    dashArray: '6 5',
   }).addTo(map);
 
   // Custom pin icon
