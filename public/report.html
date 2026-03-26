@@ -195,7 +195,7 @@
             Use "Managed" challenge type for the best user experience.
           -->
           <div class="cf-turnstile"
-               data-sitekey="0x4AAAAAACwaJq5pmdTHRVsg"
+               data-sitekey="YOUR_TURNSTILE_SITE_KEY"
                data-theme="dark"
                data-callback="onTurnstileSuccess"
                data-expired-callback="onTurnstileExpired">
@@ -389,8 +389,10 @@
     document.getElementById('rate-limit-notice').style.display = 'none';
 
     let res, data;
+
+    // Step 1 — send the request
     try {
-      res  = await fetch('/api/report', {
+      res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -402,9 +404,17 @@
           turnstileToken,
         }),
       });
-      data = await res.json();
     } catch {
       showError('Network error. Check your connection and try again.');
+      resetBtn(); return;
+    }
+
+    // Step 2 — parse JSON separately so an HTML error page never hits the
+    //           generic network-error branch
+    try {
+      data = await res.json();
+    } catch {
+      showError('Server error (HTTP ' + res.status + '). Check the Cloudflare Functions log.');
       resetBtn(); return;
     }
 
