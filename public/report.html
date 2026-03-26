@@ -6,6 +6,8 @@
   <title>NetVantage Outage Network — Report an Outage</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <!-- Cloudflare Turnstile -->
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <style>
     .report-wrap {
       max-width: 1080px;
@@ -37,13 +39,10 @@
 
     .map-hint-icon {
       flex-shrink: 0;
-      width: 18px;
-      height: 18px;
+      width: 18px; height: 18px;
       border-radius: 50%;
       background: var(--accent-bdr);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       color: var(--accent);
       font-size: 11px;
       margin-top: 1px;
@@ -58,21 +57,64 @@
       font-style: italic;
     }
 
-    .success-panel {
-      display: none;
-      text-align: center;
-      padding: 44px 20px;
-    }
+    .success-panel { display: none; padding: 32px 20px; }
 
     .success-check {
-      width: 56px; height: 56px;
+      width: 52px; height: 52px;
       border-radius: 50%;
       background: var(--accent-dim);
       border: 2px solid var(--accent-bdr);
       display: flex; align-items: center; justify-content: center;
-      font-size: 24px;
-      margin: 0 auto 18px;
+      font-size: 22px;
+      margin: 0 auto 16px;
       color: var(--accent);
+    }
+
+    .resolve-block {
+      margin-top: 22px;
+      padding: 18px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-align: left;
+    }
+
+    .resolve-block-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .resolve-block p {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+
+    .resolve-success {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--accent);
+      padding: 10px 0;
+    }
+
+    .rate-limit-notice {
+      display: none;
+      padding: 14px;
+      background: rgba(200,146,10,.08);
+      border: 1px solid rgba(200,146,10,.3);
+      border-radius: 6px;
+      font-size: 12px;
+      color: #c8920a;
+      line-height: 1.55;
+      margin-top: 14px;
+      text-align: center;
     }
 
     .required-star { color: var(--red); margin-left: 2px; }
@@ -117,7 +159,7 @@
         </p>
       </div>
 
-      <!-- Form card -->
+      <!-- ── Form card ── -->
       <div class="card" id="form-card">
         <div class="card-header">Outage Details</div>
 
@@ -131,32 +173,39 @@
         </div>
 
         <div class="form-group">
-          <label for="isp-select">
-            Internet Service Provider <span class="required-star">*</span>
-          </label>
+          <label for="isp-select">Internet Service Provider <span class="required-star">*</span></label>
           <select id="isp-select">
             <option value="">— Select your ISP —</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label for="issue-select">
-            Type of Issue <span class="required-star">*</span>
-          </label>
+          <label for="issue-select">Type of Issue <span class="required-star">*</span></label>
           <select id="issue-select">
             <option value="">— Select issue type —</option>
           </select>
         </div>
 
+        <!-- Cloudflare Turnstile CAPTCHA -->
+        <div class="form-group" style="margin-bottom:16px">
+          <label>Security Check <span class="required-star">*</span></label>
+          <!--
+            IMPORTANT: Replace YOUR_TURNSTILE_SITE_KEY with your actual site key.
+            Get one at: Cloudflare Dashboard → Turnstile → Add Site
+            Use "Managed" challenge type for the best user experience.
+          -->
+          <div class="cf-turnstile"
+               data-sitekey="YOUR_TURNSTILE_SITE_KEY"
+               data-theme="dark"
+               data-callback="onTurnstileSuccess"
+               data-expired-callback="onTurnstileExpired">
+          </div>
+        </div>
+
         <div id="marker-warning" style="
-          display:none;
-          padding:10px 14px;
-          background:rgba(200,146,10,.08);
-          border:1px solid rgba(200,146,10,.25);
-          border-radius:5px;
-          font-size:12px;
-          color:#c8920a;
-          margin-bottom:16px;
+          display:none;padding:10px 14px;
+          background:rgba(200,146,10,.08);border:1px solid rgba(200,146,10,.25);
+          border-radius:5px;font-size:12px;color:#c8920a;margin-bottom:16px;
         ">
           ↑ Place a marker on the map before submitting.
         </div>
@@ -165,29 +214,49 @@
           <span id="btn-label">Pin Location on Map First</span>
         </button>
 
-        <div id="submit-error" style="display:none;color:var(--red);font-size:12px;margin-top:10px;text-align:center"></div>
+        <div id="submit-error" style="display:none;color:var(--red);font-size:12px;margin-top:10px;text-align:center;line-height:1.5"></div>
+        <div class="rate-limit-notice" id="rate-limit-notice">
+          You've already submitted a report recently.<br>
+          Please wait up to an hour before submitting another.
+        </div>
       </div>
 
-      <!-- Success card -->
+      <!-- ── Success card ── -->
       <div class="card success-panel" id="success-card">
-        <div class="success-check">✓</div>
-        <div style="font-size:17px;font-weight:600;color:var(--accent);margin-bottom:8px">Report Submitted</div>
-        <div style="color:var(--text-muted);font-size:13px;margin-bottom:24px;line-height:1.55">
-          Your outage report has been recorded and will be visible on the live heatmap shortly.
+        <div style="text-align:center">
+          <div class="success-check">✓</div>
+          <div style="font-size:17px;font-weight:600;color:var(--accent);margin-bottom:8px">Report Submitted</div>
+          <div style="color:var(--text-muted);font-size:13px;margin-bottom:20px;line-height:1.55">
+            Your outage report is now live on the heatmap. Thank you for helping your community.
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <a href="index.html" class="btn btn-ghost" style="text-decoration:none">View Heatmap</a>
+            <button class="btn" onclick="resetForm()">Report Another</button>
+          </div>
         </div>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-          <a href="index.html" class="btn btn-ghost" style="text-decoration:none">View Heatmap</a>
-          <button class="btn" onclick="resetForm()">Report Another</button>
+
+        <!-- Uptime confirmation -->
+        <div class="resolve-block">
+          <div class="resolve-block-title">Connection Restored?</div>
+          <p>
+            If your internet is back up, let us know. This removes your report from the
+            live heatmap and helps keep the data accurate for everyone.
+          </p>
+          <div id="resolve-action">
+            <button class="btn btn-ghost" id="resolve-btn" onclick="resolveReport()" style="width:100%">
+              ✓ My Connection is Back — Mark as Resolved
+            </button>
+          </div>
         </div>
       </div>
+
     </div>
 
     <!-- ── Right: Map ──────────────────────────────────── -->
     <div>
       <div style="
         font-size:10px;font-weight:600;letter-spacing:0.14em;
-        text-transform:uppercase;color:var(--text-muted);
-        margin-bottom:12px;
+        text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;
       ">Pin Your Location</div>
 
       <div class="map-wrap">
@@ -211,10 +280,12 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script>
-  const db = getSupabaseClient();
+  // ── Turnstile callbacks ───────────────────────────────────
+  let turnstileToken = null;
+  function onTurnstileSuccess(token) { turnstileToken = token; syncBtn(); }
+  function onTurnstileExpired()       { turnstileToken = null;  syncBtn(); }
 
   // ── Populate selects ──────────────────────────────────────
   const ispSel   = document.getElementById('isp-select');
@@ -225,7 +296,6 @@
     o.value = o.textContent = isp;
     ispSel.appendChild(o);
   });
-
   ISSUE_TYPES.forEach(t => {
     const o = document.createElement('option');
     o.value = t.value; o.textContent = t.label;
@@ -239,10 +309,8 @@
   );
 
   const map = L.map('report-map', {
-    center: WATAUGA_CENTER,
-    zoom: WATAUGA_ZOOM,
-    minZoom: 10,
-    maxZoom: 17,
+    center: WATAUGA_CENTER, zoom: WATAUGA_ZOOM,
+    minZoom: 10, maxZoom: 17,
     maxBounds: boundsLL.pad(0.05),
     maxBoundsViscosity: 0.9,
     zoomControl: false,
@@ -254,27 +322,18 @@
     subdomains: 'abcd',
   }).addTo(map);
 
-  // County boundary
   L.rectangle(boundsLL, {
-    color: 'rgba(0,120,60,0.6)',
-    weight: 2,
-    fill: false,
-    dashArray: '6 5',
+    color: 'rgba(0,120,60,0.6)', weight: 2, fill: false, dashArray: '6 5',
   }).addTo(map);
 
-  // Custom pin icon
   const pinIcon = L.divIcon({
-    html: `
-      <div style="position:relative;width:28px;height:36px">
-        <svg viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 0C6.268 0 0 6.268 0 14c0 9.625 14 22 14 22S28 23.625 28 14C28 6.268 21.732 0 14 0z" fill="#00cc7a"/>
-          <circle cx="14" cy="14" r="5" fill="#041a0e"/>
-        </svg>
-        <div style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50% 50% 50% 0;box-shadow:0 0 0 3px rgba(0,204,122,.3);pointer-events:none"></div>
-      </div>`,
-    iconSize:   [28, 36],
-    iconAnchor: [14, 36],
-    className:  '',
+    html: `<div style="position:relative;width:28px;height:36px">
+      <svg viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 0C6.268 0 0 6.268 0 14c0 9.625 14 22 14 22S28 23.625 28 14C28 6.268 21.732 0 14 0z" fill="#00cc7a"/>
+        <circle cx="14" cy="14" r="5" fill="#041a0e"/>
+      </svg>
+    </div>`,
+    iconSize: [28,36], iconAnchor: [14,36], className: '',
   });
 
   let marker = null, markerLat = null, markerLng = null;
@@ -286,79 +345,156 @@
     }
     markerLat = +e.latlng.lat.toFixed(6);
     markerLng = +e.latlng.lng.toFixed(6);
-
     if (marker) map.removeLayer(marker);
     marker = L.marker([markerLat, markerLng], { icon: pinIcon }).addTo(map);
-
     document.getElementById('coord-pill').style.display = 'block';
     document.getElementById('coord-text').textContent = `${markerLat}, ${markerLng}`;
     syncBtn();
   });
 
-  // ── Validation ────────────────────────────────────────────
+  // ── Button state ──────────────────────────────────────────
   function syncBtn() {
-    const btn     = document.getElementById('submit-btn');
-    const label   = document.getElementById('btn-label');
-    const warn    = document.getElementById('marker-warning');
-    const hasPin  = markerLat !== null;
-    const hasIsp  = ispSel.value !== '';
-    const hasIssue= issueSel.value !== '';
+    const btn      = document.getElementById('submit-btn');
+    const label    = document.getElementById('btn-label');
+    const warn     = document.getElementById('marker-warning');
+    const hasPin   = markerLat !== null;
+    const hasIsp   = ispSel.value !== '';
+    const hasIssue = issueSel.value !== '';
+    const hasCap   = turnstileToken !== null;
 
     warn.style.display = (!hasPin && (hasIsp || hasIssue)) ? 'block' : 'none';
 
-    if (!hasPin && !hasIsp && !hasIssue) {
-      label.textContent = 'Pin Location on Map First';
-      btn.disabled = true;
-    } else if (!hasPin) {
-      label.textContent = 'Pin Location on Map First';
-      btn.disabled = true;
+    if (!hasPin) {
+      label.textContent = 'Pin Location on Map First'; btn.disabled = true;
     } else if (!hasIsp || !hasIssue) {
-      label.textContent = 'Complete Required Fields';
-      btn.disabled = true;
+      label.textContent = 'Complete Required Fields';  btn.disabled = true;
+    } else if (!hasCap) {
+      label.textContent = 'Complete Security Check';   btn.disabled = true;
     } else {
-      label.textContent = '↑ Submit Outage Report';
-      btn.disabled = false;
+      label.textContent = '↑ Submit Outage Report';    btn.disabled = false;
     }
   }
 
   ispSel.addEventListener('change',   syncBtn);
   issueSel.addEventListener('change', syncBtn);
 
-  // ── Submit ────────────────────────────────────────────────
+  // ── Submit via Pages Function ─────────────────────────────
+  let resolveToken = null;
+
   document.getElementById('submit-btn').addEventListener('click', async () => {
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
     document.getElementById('btn-label').textContent = 'Submitting…';
     document.getElementById('submit-error').style.display = 'none';
+    document.getElementById('rate-limit-notice').style.display = 'none';
 
-    const { error } = await db.from('outage_reports').insert([{
-      email:      document.getElementById('email').value.trim() || null,
-      isp:        ispSel.value,
-      issue_type: issueSel.value,
-      lat:        markerLat,
-      lng:        markerLng,
-    }]);
-
-    if (error) {
-      document.getElementById('submit-error').textContent = 'Submission failed. Please try again.';
-      document.getElementById('submit-error').style.display = 'block';
-      document.getElementById('btn-label').textContent = '↑ Submit Outage Report';
-      btn.disabled = false;
-      return;
+    let res, data;
+    try {
+      res  = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:          document.getElementById('email').value.trim() || null,
+          isp:            ispSel.value,
+          issue_type:     issueSel.value,
+          lat:            markerLat,
+          lng:            markerLng,
+          turnstileToken,
+        }),
+      });
+      data = await res.json();
+    } catch {
+      showError('Network error. Check your connection and try again.');
+      resetBtn(); return;
     }
 
+    if (!res.ok || !data.success) {
+      if (data.rateLimited) {
+        document.getElementById('rate-limit-notice').style.display = 'block';
+      } else {
+        showError(data.error || 'Submission failed. Please try again.');
+      }
+      resetBtn(); return;
+    }
+
+    resolveToken = data.resolveToken;
     document.getElementById('form-card').style.display    = 'none';
     document.getElementById('success-card').style.display = 'block';
   });
 
+  function resetBtn() {
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('btn-label').textContent = '↑ Submit Outage Report';
+    if (window.turnstile) window.turnstile.reset();
+    turnstileToken = null;
+    syncBtn();
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('submit-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  // ── Uptime confirmation ───────────────────────────────────
+  async function resolveReport() {
+    if (!resolveToken) return;
+    const btn = document.getElementById('resolve-btn');
+    btn.disabled = true;
+    btn.textContent = 'Marking as resolved…';
+
+    let res, data;
+    try {
+      res  = await fetch('/api/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resolveToken }),
+      });
+      data = await res.json();
+    } catch {
+      btn.disabled = false;
+      btn.textContent = '✓ My Connection is Back — Mark as Resolved';
+      showToast('Network error. Please try again.', 'error');
+      return;
+    }
+
+    if (!res.ok || !data.success) {
+      if (data && data.alreadyResolved) {
+        document.getElementById('resolve-action').innerHTML =
+          '<div class="resolve-success">✓ Already marked as resolved.</div>';
+      } else {
+        btn.disabled = false;
+        btn.textContent = '✓ My Connection is Back — Mark as Resolved';
+        showToast(data.error || 'Could not resolve report.', 'error');
+      }
+      return;
+    }
+
+    document.getElementById('resolve-action').innerHTML = `
+      <div class="resolve-success">
+        <span style="font-size:18px">✓</span>
+        Report marked as resolved. Your pin has been removed from the heatmap.
+      </div>`;
+  }
+
+  // ── Reset form ────────────────────────────────────────────
   function resetForm() {
     document.getElementById('email').value = '';
     ispSel.value = ''; issueSel.value = '';
     if (marker) { map.removeLayer(marker); marker = null; }
     markerLat = markerLng = null;
+    resolveToken = null;
     document.getElementById('coord-pill').style.display    = 'none';
     document.getElementById('form-card').style.display    = 'block';
     document.getElementById('success-card').style.display = 'none';
+    document.getElementById('submit-error').style.display = 'none';
+    document.getElementById('rate-limit-notice').style.display = 'none';
+    document.getElementById('resolve-action').innerHTML =
+      `<button class="btn btn-ghost" id="resolve-btn" onclick="resolveReport()" style="width:100%">
+         ✓ My Connection is Back — Mark as Resolved
+       </button>`;
+    if (window.turnstile) window.turnstile.reset();
+    turnstileToken = null;
     syncBtn();
   }
 </script>
